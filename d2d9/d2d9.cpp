@@ -5,6 +5,8 @@
 
 #include "framework.h"
 #include "Resource.h"
+#include <chrono>
+
 #include <d3d9.h>
 
 // 전역 변수:
@@ -47,18 +49,36 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
+    wchar_t dialogContent[128];
+    wsprintf(dialogContent, L"D3D9 inst %p\ndevice %p", dxInst, dxDevice);
+    MessageBox(hwnd, dialogContent, L"title", MB_OK);
+
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_D2D9));
 
     MSG msg;
 
+    auto START_TP = std::chrono::steady_clock::now();
+    int frame = 0;
+    
     // 기본 메시지 루프입니다:
-    while (GetMessage(&msg, nullptr, 0, 0))
+    while (1)
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_DESTROY || msg.message == WM_QUIT) {
+                break;
+            }
+            if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
         }
+        dxDevice->Clear(0, nullptr, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 255, 0), 1.0f, 0);
+        dxDevice->Present(nullptr, nullptr, NULL, nullptr);
+        frame++;
+        auto noww = std::chrono::steady_clock::now();
+        auto dt = noww - START_TP;
+        START_TP = noww;
     }
 
     dxDevice->Release();
@@ -203,7 +223,8 @@ bool initDirect() {
     presentParams.hDeviceWindow = hwnd;
     presentParams.SwapEffect = D3DSWAPEFFECT_DISCARD;
     presentParams.Windowed = TRUE;
-    presentParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    presentParams.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+    presentParams.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
     presentParams.BackBufferCount = 1;
     presentParams.BackBufferFormat = D3DFMT_UNKNOWN;
     HRESULT result = dxInst->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &presentParams, &dxDevice);
