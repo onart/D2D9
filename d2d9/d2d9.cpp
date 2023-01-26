@@ -9,6 +9,10 @@
 
 // 전역 변수:
 HINSTANCE hInst;                                // 현재 인스턴스입니다.
+HWND hwnd;
+IDirect3D9* dxInst;
+IDirect3DDevice9* dxDevice;
+
 constexpr const WCHAR* WINDOW_TITLE = L"DirectX9 Lesson";
 constexpr const WCHAR* WCLASS_NAME = L"DirectX9 Lesson";
 
@@ -57,6 +61,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
     }
 
+    dxDevice->Release();
+    dxInst->Release();
+
     return (int) msg.wParam;
 }
 
@@ -102,16 +109,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
 
-   HWND hWnd = CreateWindowW(WCLASS_NAME, WINDOW_TITLE, WS_OVERLAPPEDWINDOW,
+   hwnd = CreateWindowW(WCLASS_NAME, WINDOW_TITLE, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
+   if (!hwnd)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+   ShowWindow(hwnd, nCmdShow);
+   UpdateWindow(hwnd);
 
    return TRUE;
 }
@@ -185,7 +192,25 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 bool initDirect() {
-    IDirect3D9* hdirect = Direct3DCreate9(D3D_SDK_VERSION);
-    if (!hdirect) return false;
+    dxInst = Direct3DCreate9(D3D_SDK_VERSION);
+    if (!dxInst) return false;
+    D3DPRESENT_PARAMETERS presentParams{}; // https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dpresent-parameters
+    GetWindowDC(hwnd);
+    RECT wSize;
+    GetWindowRect(hwnd, &wSize);
+    presentParams.BackBufferWidth = wSize.right - wSize.left;
+    presentParams.BackBufferHeight = wSize.bottom - wSize.top;
+    presentParams.hDeviceWindow = hwnd;
+    presentParams.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    presentParams.Windowed = TRUE;
+    presentParams.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    presentParams.BackBufferCount = 1;
+    presentParams.BackBufferFormat = D3DFMT_UNKNOWN;
+    HRESULT result = dxInst->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &presentParams, &dxDevice);
+    if (FAILED(result)) {
+        dxInst->Release();
+        dxInst = nullptr;
+        return false;
+    }
     return true;
 }
