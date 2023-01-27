@@ -6,6 +6,7 @@
 #include "framework.h"
 #include "Resource.h"
 #include <chrono>
+#include <thread>
 
 #include <d3d9.h>
 
@@ -17,6 +18,11 @@ IDirect3DDevice9* dxDevice;
 
 constexpr const WCHAR* WINDOW_TITLE = L"DirectX9 Lesson";
 constexpr const WCHAR* WCLASS_NAME = L"DirectX9 Lesson";
+
+int keyInput[256];
+int mouseL, mouseR;
+int frame = 1;
+int mouseX, mouseY;
 
 // 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -49,16 +55,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-    wchar_t dialogContent[128];
-    wsprintf(dialogContent, L"D3D9 inst %p\ndevice %p", dxInst, dxDevice);
-    MessageBox(hwnd, dialogContent, L"title", MB_OK);
+    //wchar_t dialogContent[128];
+    //wsprintf(dialogContent, L"D3D9 inst %p\ndevice %p", dxInst, dxDevice);
+    //MessageBox(hwnd, dialogContent, L"title", MB_OK);
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_D2D9));
 
     MSG msg;
 
     auto START_TP = std::chrono::steady_clock::now();
-    int frame = 0;
     
     // 기본 메시지 루프입니다:
     while (1)
@@ -158,30 +163,90 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_COMMAND:
+    {
+        int wmId = LOWORD(wParam);
+        // 메뉴 선택을 구문 분석합니다:
+        switch (wmId)
         {
-            int wmId = LOWORD(wParam);
-            // 메뉴 선택을 구문 분석합니다:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
+        case IDM_ABOUT:
+            DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+            break;
+        case IDM_EXIT:
+            DestroyWindow(hWnd);
+            break;
+        default:
+            return DefWindowProc(hWnd, message, wParam, lParam);
+        }
+    }
+    break;
+    case WM_PAINT:
+    {
+        if (dxDevice) {
+            HRESULT result = dxDevice->TestCooperativeLevel();
+            if (result == D3DERR_DEVICENOTRESET) {
+                if (!initDirect()) {
+                    MessageBox(hwnd, L"Device Reset failure", L"Error", MB_OK);
+                    PostQuitMessage(2);
+                }
+            }
+            else if (result == D3DERR_DEVICELOST || result == D3DERR_DRIVERINTERNALERROR) {
+                for (int i = 0; i < 20; i++) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    if ((result = dxDevice->TestCooperativeLevel()) == D3DERR_DEVICENOTRESET) {
+                        if (!initDirect()) {
+                            MessageBox(hwnd, L"Device Reset failure", L"Error", MB_OK);
+                            PostQuitMessage(2);
+                        }
+                        else {
+                            return 0;
+                        }
+                    }
+                }
+                MessageBox(hwnd, L"Device Lost", L"Error", MB_OK);
+                PostQuitMessage(1);
             }
         }
-        break;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
-            EndPaint(hWnd, &ps);
-        }
-        break;
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+        EndPaint(hWnd, &ps);
+    }
+    break;
+    case WM_KEYDOWN:
+    {
+        keyInput[wParam] = frame; // VK_***
+    }
+    break;
+    case WM_KEYUP:
+    {
+        keyInput[wParam] = -frame;
+    }
+    break;
+    case WM_LBUTTONDOWN:
+    {
+        mouseL = frame;
+    }
+    break;
+    case WM_RBUTTONDOWN:
+    {
+        mouseR = frame;
+    }
+    break;
+    case WM_LBUTTONUP:
+    {
+        mouseL = -frame;
+    }
+    break;
+    case WM_RBUTTONUP:
+    {
+        mouseR = -frame;
+    }
+    break;
+    case WM_MOUSEMOVE:
+    {
+        mouseX = LOWORD(lParam);
+        mouseY = HIWORD(lParam);
+    }
+    break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -212,6 +277,10 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 bool initDirect() {
+    if (dxDevice) {
+        dxDevice->Release(); dxDevice = nullptr;
+        dxInst->Release(); dxInst = nullptr;
+    }
     dxInst = Direct3DCreate9(D3D_SDK_VERSION);
     if (!dxInst) return false;
     D3DPRESENT_PARAMETERS presentParams{}; // https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dpresent-parameters
